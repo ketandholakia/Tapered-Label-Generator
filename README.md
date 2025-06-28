@@ -1,5 +1,5 @@
 # Tapered Label Generator
-Tapered Label Generator 1.0.0 (RUS)
+Tapered Label Generator 1.0.0 (ENG)
 
 > App for create tapered label to SVG file
 
