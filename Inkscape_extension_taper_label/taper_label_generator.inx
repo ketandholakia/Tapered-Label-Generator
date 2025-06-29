@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+    <name>Tapered Label Generator</name>
+    <id>org.viw.taper_label_generator</id>
+    
+    <param name="label_height" type="float" precision="2" min="0.1" max="1000.0" gui-text="Label height (mm):">100.0</param>
+    <param name="label_width" type="float" precision="2" min="0.1" max="1000.0" gui-text="Label width (mm):">50.0</param>
+    <param name="top_diameter" type="float" precision="2" min="0.1" max="1000.0" gui-text="Top diameter (mm):">80.0</param>
+    <param name="bottom_diameter" type="float" precision="2" min="0.1" max="1000.0" gui-text="Bottom diameter (mm):">100.0</param>
+    
+    <param name="separator1" type="description">Appearance Options:</param>
+    <param name="add_dimensions" type="bool" gui-text="Add dimension text">true</param>
+    <param name="stroke_width" type="float" precision="3" min="0.001" max="10.0" gui-text="Stroke width (mm):">0.15</param>
+    <param name="fill_color" type="color" gui-text="Fill color:">#C4E9FB</param>
+    <param name="stroke_color" type="color" gui-text="Stroke color:">#000000</param>
+    
+    <effect>
+        <object-type>all</object-type>
+        <effects-menu>
+            <submenu name="Generate from Path"/>
+        </effects-menu>
+    </effect>
+    
+    <script>
+        <command location="inx" interpreter="python">taper_label_generator.py</command>
+    </script>
+    
+    <param name="help_text" type="description" xml:space="preserve">This extension generates tapered labels for conical or cylindrical surfaces.
+
+
+</param>
+</inkscape-extension>
