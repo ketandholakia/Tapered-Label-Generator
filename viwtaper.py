@@ -5,7 +5,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 from tkinter import filedialog
 
-def create_svg(width, height, viewBox, path, transform):
+def create_svg(width, height, viewBox, path, transform, label_height=None, label_width=None, top_diameter=None, bottom_diameter=None):
     svg = Element('svg', {'version': "1.1", 'baseProfile': "tiny", 'xmlns': "http://www.w3.org/2000/svg", 'xmlns:xlink': "http://www.w3.org/1999/xlink"})
     svg.set('height', f'{height}mm')
     svg.set('width', f'{width}mm')
@@ -13,6 +13,50 @@ def create_svg(width, height, viewBox, path, transform):
 
     g = SubElement(svg, 'g', stroke="#000000", fill="#C4E9FB", stroke_linecap="round", stroke_width="0.15", transform=transform)
     p = SubElement(g, 'path', d=path)
+
+    # Add dimension text if parameters are provided
+    if label_height is not None and label_width is not None and top_diameter is not None and bottom_diameter is not None:
+        # Parse viewBox to get coordinates
+        viewbox_parts = viewBox.split()
+        viewbox_x = float(viewbox_parts[0])
+        viewbox_y = float(viewbox_parts[1])
+        viewbox_width = float(viewbox_parts[2])
+        viewbox_height = float(viewbox_parts[3])
+        
+        # Create text group with appropriate transform to ensure text is readable
+        text_transform = "scale(1,-1)" if transform and "scale(1,-1)" in transform else ""
+        text_g = SubElement(svg, 'g', transform=text_transform)
+        
+        # Calculate text positions
+        text_x = viewbox_x + viewbox_width * 0.02  # 2% from left edge
+        text_y_start = viewbox_y + viewbox_height * 0.95  # 95% from top
+        line_height = viewbox_height * 0.05  # 5% of viewbox height for line spacing
+        
+        # Adjust text_y for inverted coordinate system if needed
+        if text_transform:
+            text_y_start = -(viewbox_y + viewbox_height * 0.05)  # 5% from bottom when inverted
+            line_height = -line_height
+        
+        # Add dimension texts
+        font_size = min(viewbox_width, viewbox_height) * 0.03  # 3% of smaller dimension
+        
+        # Label dimensions
+        text1 = SubElement(text_g, 'text', x=str(text_x), y=str(text_y_start), 
+                          fill="black", stroke="none", 
+                          style=f"font-family:Arial,sans-serif;font-size:{font_size}px;font-weight:bold")
+        text1.text = f"Taper Label: {label_height} - {label_width}mm"
+        
+        # Diameter information
+        if top_diameter != bottom_diameter:
+            text2 = SubElement(text_g, 'text', x=str(text_x), y=str(text_y_start + line_height), 
+                              fill="black", stroke="none", 
+                              style=f"font-family:Arial,sans-serif;font-size:{font_size}px;font-weight:bold")
+            text2.text = f"Diameters: {top_diameter}mm - {bottom_diameter}mm"
+        else:
+            text2 = SubElement(text_g, 'text', x=str(text_x), y=str(text_y_start + line_height), 
+                              fill="black", stroke="none", 
+                              style=f"font-family:Arial,sans-serif;font-size:{font_size}px;font-weight:bold")
+            text2.text = f"Diameter: {top_diameter}mm (cylindrical)"
 
     return svg
 
@@ -101,7 +145,7 @@ def generate_conical_label(label_height, label_width, top_diameter, bottom_diame
     viewBox = f"{-s} {' '.join([str(s) if j else str(-s), str(a + s * 2), str(r + s * 2)])}"
     transform = f"translate(0, {r + s * 2}) scale(1,-1)" if j else ""
 
-    return create_svg(a + s * 2, r + s * 2, viewBox, path, transform)
+    return create_svg(a + s * 2, r + s * 2, viewBox, path, transform, label_height, label_width, top_diameter, bottom_diameter)
 
 def generate_label():
     label_height = label_height_entry.get()
