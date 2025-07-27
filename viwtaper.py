@@ -5,7 +5,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 from tkinter import filedialog
 
-def create_svg(width, height, viewBox, path, transform, label_height=None, label_width=None, top_diameter=None, bottom_diameter=None):
+def create_svg(width, height, viewBox, path, transform, label_height=None, label_width=None, top_diameter=None, bottom_diameter=None, overlap=False, overlap_amount=0):
     svg = Element('svg', {'version': "1.1", 'baseProfile': "tiny", 'xmlns': "http://www.w3.org/2000/svg", 'xmlns:xlink': "http://www.w3.org/1999/xlink"})
     svg.set('height', f'{height}mm')
     svg.set('width', f'{width}mm')
@@ -16,29 +16,12 @@ def create_svg(width, height, viewBox, path, transform, label_height=None, label
 
     # Add dimension text if parameters are provided
     if label_height is not None and label_width is not None and top_diameter is not None and bottom_diameter is not None:
-        # Parse viewBox to get coordinates
-        viewbox_parts = viewBox.split()
-        viewbox_x = float(viewbox_parts[0])
-        viewbox_y = float(viewbox_parts[1])
-        viewbox_width = float(viewbox_parts[2])
-        viewbox_height = float(viewbox_parts[3])
-        
-        # Create text group with appropriate transform to ensure text is readable
-        text_transform = "scale(1,-1)" if transform and "scale(1,-1)" in transform else ""
-        text_g = SubElement(svg, 'g', transform=text_transform)
-        
-        # Calculate text positions
-        text_x = viewbox_x + viewbox_width * 0.02  # 2% from left edge
-        text_y_start = viewbox_y + viewbox_height * 0.95  # 95% from top
-        line_height = viewbox_height * 0.05  # 5% of viewbox height for line spacing
-        
-        # Adjust text_y for inverted coordinate system if needed
-        if text_transform:
-            text_y_start = -(viewbox_y + viewbox_height * 0.05)  # 5% from bottom when inverted
-            line_height = -line_height
-        
-        # Add dimension texts
-        font_size = min(viewbox_width, viewbox_height) * 0.03  # 3% of smaller dimension
+        # Create text group and set positioning variables
+        text_g = SubElement(svg, 'g')
+        font_size = 12
+        line_height = 16
+        text_x = 10
+        text_y_start = 25
         
         # Label dimensions
         text1 = SubElement(text_g, 'text', x=str(text_x), y=str(text_y_start), 
@@ -58,11 +41,18 @@ def create_svg(width, height, viewBox, path, transform, label_height=None, label
                               style=f"font-family:Arial,sans-serif;font-size:{font_size}px;font-weight:bold")
             text2.text = f"Diameter: {top_diameter}mm (cylindrical)"
 
+        # Overlap details
+        if overlap:
+            text3 = SubElement(text_g, 'text', x=str(text_x), y=str(text_y_start + 2 * line_height),
+                               fill="red", stroke="none",
+                               style=f"font-family:Arial,sans-serif;font-size:{font_size}px;font-weight:bold")
+            text3.text = f"⚠️ Warning: Label overlaps by {overlap_amount:.1f}mm"
+
     return svg
 
 def save_svg(svg, filename):
     xml_string = minidom.parseString(tostring(svg)).toprettyxml(indent="    ")
-    with open(filename, 'w') as f:
+    with open(filename, 'w', encoding='utf-8') as f:
         f.write(xml_string)
 
 def validate_input(label_height, label_width, top_diameter, bottom_diameter):
@@ -77,7 +67,7 @@ def validate_input(label_height, label_width, top_diameter, bottom_diameter):
 
 def generate_conical_label(label_height, label_width, top_diameter, bottom_diameter):
     if not validate_input(label_height, label_width, top_diameter, bottom_diameter):
-        blink_label()  # Start the blinking effect
+        blink_label()
         return "Error: Please enter numeric values."
         
     label_height = float(label_height)
@@ -89,6 +79,7 @@ def generate_conical_label(label_height, label_width, top_diameter, bottom_diame
     r = 0
     path = ""
     j = False
+    overlap = False
 
     if top_diameter != bottom_diameter:
         j = top_diameter >= bottom_diameter
@@ -97,7 +88,7 @@ def generate_conical_label(label_height, label_width, top_diameter, bottom_diame
         p = u - d
 
         if p > label_height:
-            blink_label()  # Start the blinking effect
+            blink_label()
             return "The difference between the two diameters is \n greater than the height of the label."            
 
         _ = min(max(p / label_height, -1), 1)
@@ -107,9 +98,16 @@ def generate_conical_label(label_height, label_width, top_diameter, bottom_diame
         N = t * e
         A = t * n
 
+        # Overlap detection and calculation
+        overlap_amount = 0
         if N > math.pi * u * 2 or A > math.pi * d * 2:
-            blink_label()  # Start the blinking effect
-            return "The label will circle the surface more than once."
+            overlap = True
+            # Calculate overlap amount (maximum of top or bottom overlap)
+            top_circumference = math.pi * u * 2
+            bottom_circumference = math.pi * d * 2
+            top_overlap = max(0, N - top_circumference)
+            bottom_overlap = max(0, A - bottom_circumference)
+            overlap_amount = max(top_overlap, bottom_overlap)
 
         v = t > math.pi
         a = 2 * e * (1 if v else math.sin(t / 2))
@@ -135,17 +133,27 @@ def generate_conical_label(label_height, label_width, top_diameter, bottom_diame
         path += f" A {e} {e}, 0, {g}, 0, {T} {z}"
         path += f" L {M} {F}"
         path += f" A {n} {n}, 0, {g}, 1, {E} {k}"
-        path += " Z"  # Closing the loop
+        path += " Z"
     else:
+        # For cylindrical labels, check for overlap
+        overlap_amount = 0
+        circumference = math.pi * top_diameter
+        if label_width > circumference:
+            overlap = True
+            overlap_amount = label_width - circumference
+        
         a = label_width
         r = label_height
-        path = f"M 0 0 V {label_height} H {label_width} V 0 Z"  # Closing the loop
+        path = f"M 0 0 V {label_height} H {label_width} V 0 Z"
 
     s = 0.5
     viewBox = f"{-s} {' '.join([str(s) if j else str(-s), str(a + s * 2), str(r + s * 2)])}"
     transform = f"translate(0, {r + s * 2}) scale(1,-1)" if j else ""
 
-    return create_svg(a + s * 2, r + s * 2, viewBox, path, transform, label_height, label_width, top_diameter, bottom_diameter)
+    svg = create_svg(a + s * 2, r + s * 2, viewBox, path, transform, label_height, label_width, top_diameter, bottom_diameter, overlap, overlap_amount)
+
+    # Return svg, overlap status, and overlap amount
+    return svg, overlap, overlap_amount
 
 def generate_label():
     label_height = label_height_entry.get()
@@ -153,19 +161,24 @@ def generate_label():
     top_diameter = top_diameter_entry.get()
     bottom_diameter = bottom_diameter_entry.get()
 
-    svg = generate_conical_label(label_height, label_width, top_diameter, bottom_diameter)
+    result = generate_conical_label(label_height, label_width, top_diameter, bottom_diameter)
 
-    if isinstance(svg, str):
-        result_label.configure(text=svg)        
+    if isinstance(result, str):
+        result_label.configure(text=result)
     else:
+        svg, overlap, overlap_amount = result
         file_extension = ".svg"
         file_name = f"TaperLabel {label_height}x{label_width}{file_extension}"
         file_path = filedialog.asksaveasfilename(defaultextension=file_extension, initialfile=file_name, filetypes=[("SVG files", "*.svg")])
         if file_path:
             save_svg(svg, file_path)
             webbrowser.open(file_path)
-            result_label.configure(text=f"Label {label_height}x{label_width}.svg\nwas saved successfully.", fg="green")
-
+            msg = f"Label {label_height}x{label_width}.svg\nwas saved successfully."
+            if overlap:
+                msg += f"\nWarning: The label overlaps by {overlap_amount:.1f}mm."
+                result_label.configure(text=msg, fg="orange")
+            else:
+                result_label.configure(text=msg, fg="green")
 def blink_label():
     current_color = result_label.cget("foreground")
     new_color = "red" if current_color == "black" else "black"
